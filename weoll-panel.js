@@ -50,7 +50,6 @@
 
     // 2. Tabloya Checkbox'ları Yerleştirme
     function attachCheckboxes() {
-        // Tablo başlığına "Hepsini Seç" kutusu ekle
         var th = document.querySelector('th.row-icon-table');
         if (th && !document.getElementById('w-th-cb')) {
             th.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;"><input type="checkbox" id="w-th-cb" title="Tümünü Seç / Kaldır" style="cursor:pointer;width:16px;height:16px;"></div>';
@@ -59,7 +58,6 @@
             };
         }
 
-        // Satırlara checkbox ekle
         var rows = document.querySelectorAll('tr[data-index]');
         rows.forEach(function(row) {
             var link = row.querySelector('a[href*="/forms/submission?id="]');
@@ -69,7 +67,6 @@
             var url = link.href;
 
             if (!iconTd.querySelector('.w-row-cb')) {
-                // İkonu gizle, kutucuğu ortala
                 var originalIcon = iconTd.querySelector('div');
                 if (originalIcon) originalIcon.style.display = 'none';
 
@@ -106,7 +103,6 @@
         updateCounter();
     }
 
-    // Tümünü seç / bırak
     function toggleSelectAll(select) {
         var links = document.querySelectorAll('a[href*="/forms/submission?id="]');
         links.forEach(function(link) {
@@ -127,7 +123,6 @@
         updateCounter();
     }
 
-    // Sanal kaydırma için DOM'u dinle
     var tableBody = document.querySelector('#portal-table tbody');
     if (tableBody) {
         var observer = new MutationObserver(function() {
@@ -138,11 +133,17 @@
 
     attachCheckboxes();
 
-    // 3. Tek Bir Formu Onaylama Motoru
+    // 3. İsim Kontrolü ve Onaylama Motoru
     async function doOne(url) {
         var link = document.querySelector(`a[href="${url}"]`);
         var formId = link ? link.innerText.trim() : 'Form';
         var row = link ? link.closest('tr') : null;
+
+        // Gönderen kısmında "Tacettin Utku SÜER" ismi geçiyor mu?
+        var isTacettin = false;
+        if (row && row.innerText.includes("Tacettin Utku SÜER")) {
+            isTacettin = true;
+        }
 
         if (row) {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -150,7 +151,8 @@
             row.style.backgroundColor = '#fff3cd';
         }
 
-        st.innerText = `İşleniyor: #${formId}...`;
+        var islemTipi = isTacettin ? "(Evet + Onay)" : "(Sadece Onay)";
+        st.innerText = `İşleniyor: #${formId} ${islemTipi}...`;
         ifr.src = url;
 
         await sleep(3000); // Form yükleme beklemesi
@@ -160,13 +162,27 @@
         for (var k = 0; k < 10; k++) {
             var rad = doc.querySelector('input[type="radio"][value="Evet"]');
             var btn = doc.querySelector('button.btn-success');
+            var success = false;
+            var msg = '';
 
-            if (rad && btn) {
+            // 1. Koşul: İsim eşleşiyorsa "Evet" ve "Onayla" tıkla
+            if (isTacettin && rad && btn) {
                 rad.click();
                 await sleep(400);
                 btn.click();
+                success = true;
+                msg = 'Evet + Onay';
+            } 
+            // 2. Koşul: İsim eşleşmiyorsa sadece "Onayla" tıkla
+            else if (!isTacettin && btn) {
+                btn.click();
+                success = true;
+                msg = 'Sadece Onay';
+            }
 
-                st.innerText = `✔ #${formId} onaylandı!`;
+            // İşlem başarılıysa UI güncelle
+            if (success) {
+                st.innerText = `✔ #${formId} onaylandı! (${msg})`;
                 selectedUrls.delete(url);
 
                 if (row) {
@@ -182,10 +198,11 @@
                 await sleep(1500);
                 return true;
             }
-            await sleep(1000);
+
+            await sleep(1000); // Butonlar henüz yüklenmediyse bekle ve tekrar dene
         }
 
-        st.innerText = `✖ #${formId} buton bulunamadı!`;
+        st.innerText = `✖ #${formId} gerekli butonlar bulunamadı!`;
         if (row) {
             row.style.outline = '2px solid #dc3545';
             row.style.backgroundColor = '#f8d7da';
