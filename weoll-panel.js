@@ -52,6 +52,13 @@
     '<div id="wb-info" style="min-height:34px;padding:4px;border-radius:4px;background:#eee"></div>';
   document.body.appendChild(panel);
   const $ = id => panel.querySelector(id);
+  const pageOk = () => location.hostname === 'my.weoll.com' && location.pathname.startsWith('/forms/steps/waiting');
+  const wrong = document.createElement('div');
+  wrong.style.cssText = 'display:none;position:fixed;left:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #b00020;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
+  wrong.innerHTML = '<div style="color:#b00020;font-weight:bold;margin-bottom:6px">Bu sayfa uygun değil</div>' +
+    '<button style="width:100%;padding:4px">Doğru sayfaya git</button>';
+  wrong.querySelector('button').onclick = () => { location.href = TARGET; };
+  document.body.appendChild(wrong);
   const btnAll = $('#wb-all'), btnStart = $('#wb-start'), btnStop = $('#wb-stop'), info = $('#wb-info');
 
   /* ---------- iframe ---------- */
@@ -102,6 +109,12 @@
       cb.addEventListener('click', e => e.stopPropagation());
       icon.style.display = 'none';
       icon.parentNode.insertBefore(cb, icon);
+    });
+  }
+  function removeCheckboxes() {
+    document.querySelectorAll('.wb-cb').forEach(cb => {
+      const ic = cb.nextElementSibling; if (ic) ic.style.display = '';
+      cb.remove();
     });
   }
   const findRow = href => [...document.querySelectorAll(SEL.rows)].find(r => {
@@ -244,6 +257,14 @@
   btnStop.onclick = () => { running = false; };
 
   const timer = setInterval(() => {
+    if (!pageOk()) {                       // SPA içinde başka sayfaya geçildi
+      running = false;
+      removeCheckboxes();
+      panel.style.display = 'none';
+      wrong.style.display = 'block';
+      return;
+    }
+    if (wrong.style.display !== 'none') { wrong.style.display = 'none'; panel.style.display = 'block'; }
     inject();
     const c = safety();
     if (!c.ok) {
@@ -264,11 +285,8 @@
   window.__weoll = {
     destroy() {
       clearInterval(timer); running = false;
-      panel.remove(); fr.remove();
-      document.querySelectorAll('.wb-cb').forEach(cb => {
-        const ic = cb.nextElementSibling; if (ic) ic.style.display = '';
-        cb.remove();
-      });
+      panel.remove(); wrong.remove(); fr.remove();
+      removeCheckboxes();
       delete window.__weoll;
     }
   };
