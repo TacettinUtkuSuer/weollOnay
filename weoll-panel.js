@@ -102,13 +102,18 @@
   }
 
   /* ---------- Form içi yardımcılar ---------- */
-  const findApprove = doc =>
-    [...doc.querySelectorAll('button')].find(b => /^onayla$/i.test(b.textContent.trim())) ||
-    doc.querySelector('button.btn-success');
+  const LOG = (...a) => console.log('[Weoll]', ...a);
+  const findApprove = doc => {
+    const btns = [...doc.querySelectorAll('button')];
+    return btns.find(b => /^onayla(\s*\(|\s*$)/i.test(b.textContent.trim().replace(/\s+/g, ' '))) ||
+      doc.querySelector('button.btn-success');
+  };
   function setYes(doc, radio) {
-    const lbl = radio.closest('label') || (radio.id && doc.querySelector('label[for="' + radio.id + '"]'));
-    if (lbl) lbl.click();
     radio.click();
+    if (!radio.checked) {
+      const lbl = radio.closest('label') || (radio.id && doc.querySelector('label[for="' + radio.id + '"]'));
+      if (lbl) lbl.click();
+    }
     if (!radio.checked) radio.checked = true;
     ['input', 'change'].forEach(t => radio.dispatchEvent(new Event(t, { bubbles: true })));
   }
@@ -127,14 +132,21 @@
     const s = norm(item.sender);
     if (!s) return 'Gönderen okunamadı';
     const same = s === userNorm || s.includes(userNorm) || userNorm.includes(s);
+    LOG('gönderen=', s, '| kullanıcı=', userNorm, '| eşleşme=', same);
     if (same) { // DURUM A
       const radio = await waitFor(() => doc.querySelector(SEL.yes), 5000);
       if (!radio) return '"Evet" radyosu bulunamadı';
       setYes(doc, radio);
-      await sleep(400);
+      await sleep(600);
+      LOG('evet işaretli mi:', radio.checked);
+      if (!radio.checked) return '"Evet" işaretlenemedi';
     }
-    findApprove(doc).click(); // DURUM B doğrudan buraya düşer
+    const ab = findApprove(doc);
+    LOG('onayla butonu:', ab && ab.textContent.trim(), 'disabled=', ab && ab.disabled);
+    if (ab.disabled) return 'Onayla butonu pasif';
+    ab.click(); // DURUM B doğrudan buraya düşer
     const m = await waitFor(() => findModalBtn(doc), 5000);
+    LOG('modal butonu:', m && m.textContent.trim());
     if (m) m.click();
     await sleep(2000);
 
