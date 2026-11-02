@@ -15,8 +15,10 @@
     modal: '.confirmation-modal__actions button.btn-success, .modal-dialog button.btn-success'
   };
   const GREEN = '#c8f7c5', RED = '#f9c6c6';
+  const FORM_NAME = 'mesai talep formu';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr');
+  const isMesai = row => norm(row.textContent).includes(FORM_NAME);
   const visible = el => !!el && el.offsetWidth > 0 && el.offsetHeight > 0 && getComputedStyle(el).display !== 'none';
   async function waitFor(fn, ms) {
     const t0 = Date.now();
@@ -94,7 +96,7 @@
   /* ---------- Checkbox enjeksiyonu ---------- */
   function inject() {
     document.querySelectorAll(SEL.rows).forEach(row => {
-      if (row.querySelector('.wb-cb')) return;
+      if (row.querySelector('.wb-cb') || !isMesai(row)) return;
       const icon = row.querySelector(SEL.icon);
       if (!icon) return;
       const cb = document.createElement('input');
@@ -214,7 +216,7 @@
     if (!c.ok) return;
     const userNorm = norm(c.user);
     const items = [...document.querySelectorAll(SEL.rows)]
-      .filter(r => r.querySelector('.wb-cb') && r.querySelector('.wb-cb').checked)
+      .filter(r => isMesai(r) && r.querySelector('.wb-cb') && r.querySelector('.wb-cb').checked)
       .map(r => {
         const a = r.querySelector(SEL.link), card = r.querySelector(SEL.card);
         return a ? { href: a.href, sender: card ? card.innerText : '' } : null;
