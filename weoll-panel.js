@@ -2,6 +2,21 @@
   'use strict';
   if (window.__weoll) { window.__weoll.destroy(); return; } // 2. tıklama = kapat
 
+  /* ---------- Sayfa kısıtı ---------- */
+  const TARGET = 'https://my.weoll.com/forms/steps/waiting';
+  const oldWrong = document.getElementById('wb-wrong');
+  if (oldWrong) { oldWrong.remove(); return; }
+  if (location.hostname !== 'my.weoll.com' || !location.pathname.startsWith('/forms/steps/waiting')) {
+    const w = document.createElement('div');
+    w.id = 'wb-wrong';
+    w.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #b00020;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
+    w.innerHTML = '<div style="color:#b00020;font-weight:bold;margin-bottom:6px">Bu sayfa uygun değil</div>' +
+      '<button id="wb-go" style="width:100%;padding:4px">Doğru sayfaya git</button>';
+    document.body.appendChild(w);
+    w.querySelector('#wb-go').onclick = () => { location.href = TARGET; };
+    return;
+  }
+
   const SEL = {
     user: 'a.myspace-button div[style*="font-size: 14px"]',
     rows: '#portal-table tr[data-index]',
@@ -27,7 +42,7 @@
   /* ---------- Panel ---------- */
   const panel = document.createElement('div');
   panel.id = 'wb-panel';
-  panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #888;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
+  panel.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #888;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
   panel.innerHTML =
     '<div style="font-weight:bold;margin-bottom:6px">Weoll Otomatik Onay</div>' +
     '<div style="display:flex;gap:4px;margin-bottom:6px">' +
