@@ -4,18 +4,6 @@
 
   /* ---------- Sayfa kısıtı ---------- */
   const TARGET = 'https://my.weoll.com/forms/steps/waiting';
-  const oldWrong = document.getElementById('wb-wrong');
-  if (oldWrong) { oldWrong.remove(); return; }
-  if (location.hostname !== 'my.weoll.com' || !location.pathname.startsWith('/forms/steps/waiting')) {
-    const w = document.createElement('div');
-    w.id = 'wb-wrong';
-    w.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #b00020;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
-    w.innerHTML = '<div style="color:#b00020;font-weight:bold;margin-bottom:6px">Bu sayfa uygun değil</div>' +
-      '<button id="wb-go" style="width:100%;padding:4px">Doğru sayfaya git</button>';
-    document.body.appendChild(w);
-    w.querySelector('#wb-go').onclick = () => { location.href = TARGET; };
-    return;
-  }
 
   const SEL = {
     user: 'a.myspace-button div[style*="font-size: 14px"]',
@@ -57,7 +45,14 @@
   wrong.style.cssText = 'display:none;position:fixed;left:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #b00020;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
   wrong.innerHTML = '<div style="color:#b00020;font-weight:bold;margin-bottom:6px">Bu sayfa uygun değil</div>' +
     '<button style="width:100%;padding:4px">Doğru sayfaya git</button>';
-  wrong.querySelector('button').onclick = () => { location.href = TARGET; };
+  function goTarget() {
+    const a = document.querySelector('a[href*="/forms/steps/waiting"]');
+    if (a) { a.click(); return; }                       // menüdeki linke tıkla (yenileme yok)
+    history.pushState({}, '', '/forms/steps/waiting');   // yönlendiriciyi tetikle
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+    setTimeout(() => { if (!document.querySelector('#portal-table')) location.href = TARGET; }, 2000); // son çare: tam yenileme
+  }
+  wrong.querySelector('button').onclick = goTarget;
   document.body.appendChild(wrong);
   const btnAll = $('#wb-all'), btnStart = $('#wb-start'), btnStop = $('#wb-stop'), info = $('#wb-info');
 
@@ -256,7 +251,7 @@
   btnStart.onclick = () => { if (!running) run(); };
   btnStop.onclick = () => { running = false; };
 
-  const timer = setInterval(() => {
+  const tick = () => {
     if (!pageOk()) {                       // SPA içinde başka sayfaya geçildi
       running = false;
       removeCheckboxes();
@@ -279,8 +274,9 @@
       if (warn) { warn = false; setInfo('Hazır. Kullanıcı: ' + c.user); }
       else if (!running && !info.textContent) setInfo('Hazır. Kullanıcı: ' + c.user);
     }
-  }, 1000);
-  inject();
+  };
+  const timer = setInterval(tick, 1000);
+  tick();
 
   window.__weoll = {
     destroy() {
