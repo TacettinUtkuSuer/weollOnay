@@ -1,15 +1,15 @@
 (function() {
     if (document.getElementById('weoll-panel')) {
-        return; // Sessizce dön, zaten açıksa bir şey yapma
+        return; 
     }
 
     var run = false;
     var selectedTasks = new Map();
+    var isSystemReady = false; // Sistem (İsim + Gönderen sütunu) hazır mı?
 
-    // 1. SOL MENÜDEN CANLI İSİM OKUMA FONKSİYONU
+    // 1. SOL MENÜDEN CANLI İSİM OKUMA
     function getAktifKullaniciAdi() {
         var mySpace = document.querySelector('a.myspace-button');
-        // Menü daraltıldığında offsetWidth 0 olur veya gizlenir
         if (!mySpace || mySpace.offsetWidth === 0) return null;
         
         var nameNode = mySpace.querySelector('div[style*="font-size: 14px"]');
@@ -23,6 +23,15 @@
         return null;
     }
 
+    // GÖNDEREN SÜTUNU GÖRÜNÜYOR MU?
+    function isGonderenVisible() {
+        var ths = Array.from(document.querySelectorAll('th'));
+        var gonderenTh = ths.find(th => th.innerText.includes('Gönderen'));
+        // Sütun başlığı yoksa veya offsetWidth 0 (ekranda gizlenmişse) false döner
+        if (!gonderenTh || gonderenTh.offsetWidth === 0) return false;
+        return true;
+    }
+
     // 2. PANEL ARAYÜZÜ
     var p = document.createElement('div');
     p.id = 'weoll-panel';
@@ -33,7 +42,7 @@
             <span style="cursor:pointer;font-weight:bold;color:#888;" id="w-x">✖</span>
         </div>
         <div id="w-user-info" style="margin-bottom:6px;padding:6px;border-radius:4px;font-size:11px;background:#e8f4fd;color:#004d71;border-left:4px solid #0d6efd;">
-            Kullanıcı aranıyor...
+            Ekran kontrol ediliyor...
         </div>
         <div id="w-target" style="padding:6px;background:#f8f9fa;border-left:4px solid #6c757d;margin-bottom:8px;font-size:12px;">
             <b id="w-count-text">0 form seçildi</b>
@@ -52,22 +61,35 @@
     var countText = document.getElementById('w-count-text');
     var userInfo = document.getElementById('w-user-info');
     var ifr = document.getElementById('w-if');
+    var aktifKullanici = null;
 
-    // CANLI RADAR: Her 1 saniyede sol menüyü kontrol eder
+    // CANLI RADAR: Her 1 saniyede sol menüyü VE gönderen sütununu kontrol eder
     var userCheckInterval = setInterval(() => {
-        var aktif = getAktifKullaniciAdi();
-        if (aktif) {
-            userInfo.innerHTML = `Kullanıcı: <b>${aktif}</b>`;
+        aktifKullanici = getAktifKullaniciAdi();
+        var gonderenGorunur = isGonderenVisible();
+
+        if (!aktifKullanici) {
+            userInfo.innerHTML = `⚠️ Sol menü kapalı! İsim okunamıyor.`;
+            setRadarError();
+        } else if (!gonderenGorunur) {
+            userInfo.innerHTML = `⚠️ "Gönderen" sütunu gizli! Ekranı uzaklaştırın.`;
+            setRadarError();
+        } else {
+            userInfo.innerHTML = `Kullanıcı: <b>${aktifKullanici}</b> (Sistem Hazır)`;
             userInfo.style.background = '#e8f4fd';
             userInfo.style.borderLeftColor = '#0d6efd';
             userInfo.style.color = '#004d71';
-        } else {
-            userInfo.innerHTML = `⚠️ Sol menü kapalı veya isim okunamıyor!`;
-            userInfo.style.background = '#f8d7da';
-            userInfo.style.borderLeftColor = '#dc3545';
-            userInfo.style.color = '#dc3545';
+            isSystemReady = true;
         }
     }, 1000);
+
+    function setRadarError() {
+        userInfo.style.background = '#f8d7da';
+        userInfo.style.borderLeftColor = '#dc3545';
+        userInfo.style.color = '#dc3545';
+        isSystemReady = false;
+        run = false; // Hata anında işlemi durdur
+    }
 
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -160,9 +182,8 @@
 
     // 4. İŞLEME VE DİNAMİK LİSTE KONTROLÜ
     async function doOne(url) {
-        var aktifKullanici = getAktifKullaniciAdi();
-        if (!aktifKullanici) {
-            st.innerText = "HATA: Sol menüden isim okunamadı! Lütfen menüyü açın.";
+        if (!isSystemReady) {
+            st.innerText = "HATA: Ekran uygun değil! İşlem durduruldu.";
             run = false;
             return false;
         }
@@ -171,39 +192,12 @@
         var formId = link ? link.innerText.trim() : 'Form';
         var row = link ? link.closest('tr') : null;
 
-        if (!row) {
-            st.innerText = `HATA: #${formId} satırı ekranda bulunamadı!`;
-            run = false;
-            return false;
-        }
+        if (!row) return false;
 
-        // DİNAMİK LİSTE GÖRÜNÜRLÜK (ZOOM) KONTROLÜ
+        // Karar anında gönderen sütunundan ismi oku
         var senderCard = row.querySelector('.user-card-v0');
-        // Eğer sütun zoom sebebiyle gizlenmişse (offsetParent null döner) işlemi durdur.
-        if (!senderCard || senderCard.offsetParent === null) {
-            st.innerText = `HATA: #${formId} için gönderen ismi ekranda gizli! Lütfen ekranı uzaklaştırın (Zoom out).`;
-            run = false;
-            row.style.outline = '2px solid #dc3545';
-            row.style.backgroundColor = '#f8d7da';
-            return false;
-        }
+        var isSameUser = senderCard ? senderCard.textContent.toLocaleLowerCase('tr-TR').includes(aktifKullanici.toLocaleLowerCase('tr-TR')) : false;
 
-        var isSameUser = senderCard.textContent.toLocaleLowerCase('tr-TR').includes(aktifKullanici.toLocaleLowerCase('tr-TR'));
-
-        // Gönderen farklıysa atla
-        if (!isSameUser) {
-            st.innerText = `⏭ #${formId} atlandı (Gönderen farklı).`;
-            row.style.outline = '1px dashed #6c757d';
-            row.style.backgroundColor = '#f8f9fa';
-            var cb = row.querySelector('.w-row-cb');
-            if (cb) cb.checked = false;
-            selectedTasks.delete(url);
-            updateCounter();
-            await sleep(600);
-            return true;
-        }
-
-        // Onaylama işlemleri başlıyor
         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         row.style.outline = '3px solid #ff9800';
         row.style.backgroundColor = '#fff3cd';
@@ -212,7 +206,6 @@
         ifr.src = url;
 
         await sleep(3500);
-
         var doc = ifr.contentDocument || ifr.contentWindow.document;
         var clickSuccess = false;
 
@@ -221,19 +214,28 @@
             var buttons = Array.from(doc.querySelectorAll('button'));
             var btn = buttons.find(b => b.innerText.includes('Onayla')) || doc.querySelector('button.btn-success');
 
-            if (rad && btn) {
-                st.innerText = `Evet seçiliyor: #${formId}...`;
-                var lbl = doc.querySelector(`label[for="${rad.id}"]`) || rad.parentElement;
-                if (lbl) lbl.click();
-                rad.click();
-                rad.checked = true;
-                rad.dispatchEvent(new Event('input', { bubbles: true }));
-                rad.dispatchEvent(new Event('change', { bubbles: true }));
+            if (isSameUser) {
+                if (rad && btn) {
+                    st.innerText = `Evet seçiliyor: #${formId}...`;
+                    var lbl = doc.querySelector(`label[for="${rad.id}"]`) || rad.parentElement;
+                    if (lbl) lbl.click();
+                    rad.click();
+                    rad.checked = true;
+                    rad.dispatchEvent(new Event('input', { bubbles: true }));
+                    rad.dispatchEvent(new Event('change', { bubbles: true }));
 
-                await sleep(800);
-                btn.click();
-                clickSuccess = true;
-                break;
+                    await sleep(800);
+                    btn.click();
+                    clickSuccess = true;
+                    break;
+                }
+            } else {
+                if (btn) {
+                    st.innerText = `Onaylanıyor: #${formId}...`;
+                    btn.click();
+                    clickSuccess = true;
+                    break;
+                }
             }
             await sleep(1000);
         }
@@ -245,7 +247,7 @@
             return false;
         }
 
-        // Modal (Açılır onay penceresi)
+        // Modal Onayı
         await sleep(1000);
         var modalBtn = doc.querySelector('.confirmation-modal__actions button.btn-success, .modal-dialog button.btn-success, .modal-dialog button.btn-primary');
         if (!modalBtn) {
@@ -303,6 +305,10 @@
     };
 
     document.getElementById('w-btn-go').onclick = async function() {
+        if (!isSystemReady) {
+            alert("Sistem hazır değil! Lütfen ekran uyarılarını düzeltin.");
+            return;
+        }
         if (selectedTasks.size === 0) {
             st.innerText = 'Lütfen onaylanacak formları seçin!';
             return;
@@ -312,7 +318,7 @@
 
         var tasks = Array.from(selectedTasks.keys());
         for (var i = 0; i < tasks.length; i++) {
-            if (!run) break;
+            if (!run || !isSystemReady) break;
             await doOne(tasks[i]);
             if (run) await sleep(1200);
         }
