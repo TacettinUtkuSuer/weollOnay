@@ -1,50 +1,44 @@
 (function() {
     if (document.getElementById('weoll-panel')) {
-        alert('Panel zaten açık!');
-        return;
-    }
-
-    // 1. OTURUM AÇAN KULLANICININ ADINI SOL MENÜDEN OKU
-    function getAktifKullaniciAdi() {
-        var myName = "";
-        var nameNode = document.querySelector('a.myspace-button div[style*="font-size: 14px"]');
-        
-        if (nameNode && nameNode.textContent.trim()) {
-            myName = nameNode.textContent.trim();
-        } else {
-            var mySpace = document.querySelector('a.myspace-button');
-            if (mySpace && mySpace.textContent.trim()) {
-                var satirlar = mySpace.textContent.split('\n').map(s => s.trim()).filter(Boolean);
-                if (satirlar.length > 0) myName = satirlar[0];
-            }
-        }
-        return myName;
-    }
-
-    var aktifKullanici = getAktifKullaniciAdi();
-
-    // İSİM BULUNAMAZSA İŞLEMİ İPTAL ET
-    if (!aktifKullanici) {
-        alert("Sol menüden kullanıcı adınız okunamadı!\n\nLütfen sol menünün açık olduğundan ve ekranın çok yakınlaştırılmadığından emin olup tekrar deneyin.");
-        return;
+        return; // Sessizce dön, zaten açıksa bir şey yapma
     }
 
     var run = false;
     var selectedTasks = new Map();
 
+    // 1. SOL MENÜDEN CANLI İSİM OKUMA FONKSİYONU
+    function getAktifKullaniciAdi() {
+        var mySpace = document.querySelector('a.myspace-button');
+        // Menü daraltıldığında offsetWidth 0 olur veya gizlenir
+        if (!mySpace || mySpace.offsetWidth === 0) return null;
+        
+        var nameNode = mySpace.querySelector('div[style*="font-size: 14px"]');
+        if (nameNode && nameNode.textContent.trim()) {
+            return nameNode.textContent.trim();
+        }
+        if (mySpace.textContent.trim()) {
+            var satirlar = mySpace.textContent.split('\n').map(s => s.trim()).filter(Boolean);
+            if (satirlar.length > 0) return satirlar[0];
+        }
+        return null;
+    }
+
     // 2. PANEL ARAYÜZÜ
     var p = document.createElement('div');
     p.id = 'weoll-panel';
-    p.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#fff;border:2px solid #004d71;border-radius:8px;padding:12px;width:300px;font-family:sans-serif;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
+    p.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#fff;border:2px solid #004d71;border-radius:8px;padding:12px;width:310px;font-family:sans-serif;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
     p.innerHTML = `
         <div style="font-weight:bold;margin-bottom:6px;display:flex;justify-content:space-between;color:#004d71;">
-            <span>Weoll Onay Kumandası</span>
+            <span>Weoll Dinamik Onay Paneli</span>
             <span style="cursor:pointer;font-weight:bold;color:#888;" id="w-x">✖</span>
         </div>
-        <div id="w-target" style="padding:6px;background:#f8f9fa;border-left:4px solid #004d71;margin-bottom:8px;font-size:12px;">
+        <div id="w-user-info" style="margin-bottom:6px;padding:6px;border-radius:4px;font-size:11px;background:#e8f4fd;color:#004d71;border-left:4px solid #0d6efd;">
+            Kullanıcı aranıyor...
+        </div>
+        <div id="w-target" style="padding:6px;background:#f8f9fa;border-left:4px solid #6c757d;margin-bottom:8px;font-size:12px;">
             <b id="w-count-text">0 form seçildi</b>
         </div>
-        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Kullanıcı: <b>${aktifKullanici}</b></div>
+        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Hazır. Onaylamak istediklerinizi seçin.</div>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
             <button id="w-btn-select-all" style="flex:1;background:#6c757d;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Tümünü Seç</button>
             <button id="w-btn-go" style="flex:1.4;background:#28a745;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Seçilenleri Onayla</button>
@@ -56,7 +50,24 @@
 
     var st = document.getElementById('w-st');
     var countText = document.getElementById('w-count-text');
+    var userInfo = document.getElementById('w-user-info');
     var ifr = document.getElementById('w-if');
+
+    // CANLI RADAR: Her 1 saniyede sol menüyü kontrol eder
+    var userCheckInterval = setInterval(() => {
+        var aktif = getAktifKullaniciAdi();
+        if (aktif) {
+            userInfo.innerHTML = `Kullanıcı: <b>${aktif}</b>`;
+            userInfo.style.background = '#e8f4fd';
+            userInfo.style.borderLeftColor = '#0d6efd';
+            userInfo.style.color = '#004d71';
+        } else {
+            userInfo.innerHTML = `⚠️ Sol menü kapalı veya isim okunamıyor!`;
+            userInfo.style.background = '#f8d7da';
+            userInfo.style.borderLeftColor = '#dc3545';
+            userInfo.style.color = '#dc3545';
+        }
+    }, 1000);
 
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -67,11 +78,6 @@
         countText.innerText = selectedTasks.size + ' / ' + total + ' form seçildi';
         var thCb = document.getElementById('w-th-cb');
         if (thCb) thCb.checked = (total > 0 && selectedTasks.size === total);
-    }
-
-    function isAyniKullanici(row) {
-        var senderCard = row.querySelector('.user-card-v0') || row;
-        return senderCard.textContent.toLocaleLowerCase('tr-TR').includes(aktifKullanici.toLocaleLowerCase('tr-TR'));
     }
 
     // 3. TABLOYA CHECKBOX YERLEŞTİRME
@@ -89,10 +95,7 @@
             var link = row.querySelector('a[href*="/forms/submission?id="]');
             var iconTd = row.querySelector('td.row-icon-table');
             if (!link || !iconTd) return;
-
             var url = link.href;
-            var formId = link.innerText.trim();
-            var ayniKullanici = isAyniKullanici(row);
 
             if (!iconTd.querySelector('.w-row-cb')) {
                 var origIcon = iconTd.querySelector('div');
@@ -104,13 +107,12 @@
                 var cb = document.createElement('input');
                 cb.type = 'checkbox';
                 cb.className = 'w-row-cb';
-                cb.dataset.url = url;
                 cb.style.cssText = 'cursor:pointer;width:16px;height:16px;margin:0;';
                 cb.checked = selectedTasks.has(url);
 
                 cb.onchange = function() {
                     if (this.checked) {
-                        selectedTasks.set(url, { formId: formId, ayniKullanici: ayniKullanici, row: row });
+                        selectedTasks.set(url, url);
                         row.style.backgroundColor = '#e8f4fd';
                     } else {
                         selectedTasks.delete(url);
@@ -134,13 +136,10 @@
             var link = row.querySelector('a[href*="/forms/submission?id="]');
             var cb = row.querySelector('.w-row-cb');
             if (!link) return;
-
             var url = link.href;
-            var formId = link.innerText.trim();
-            var ayniKullanici = isAyniKullanici(row);
 
             if (select) {
-                selectedTasks.set(url, { formId: formId, ayniKullanici: ayniKullanici, row: row });
+                selectedTasks.set(url, url);
                 if (cb) cb.checked = true;
                 row.style.backgroundColor = '#e8f4fd';
             } else {
@@ -159,43 +158,64 @@
     }
     attachCheckboxes();
 
-    // 4. İŞLEME VE KONTROL (REFRESH CHECK)
-    async function doOne(task) {
-        var url = task[0];
-        var info = task[1];
-        var row = info.row;
-        var formId = info.formId;
-        var ayniKullanici = info.ayniKullanici;
+    // 4. İŞLEME VE DİNAMİK LİSTE KONTROLÜ
+    async function doOne(url) {
+        var aktifKullanici = getAktifKullaniciAdi();
+        if (!aktifKullanici) {
+            st.innerText = "HATA: Sol menüden isim okunamadı! Lütfen menüyü açın.";
+            run = false;
+            return false;
+        }
 
-        // Gönderen farklıysa hiçbir şey yapmadan atla
-        if (!ayniKullanici) {
+        var link = document.querySelector(`a[href="${url}"]`);
+        var formId = link ? link.innerText.trim() : 'Form';
+        var row = link ? link.closest('tr') : null;
+
+        if (!row) {
+            st.innerText = `HATA: #${formId} satırı ekranda bulunamadı!`;
+            run = false;
+            return false;
+        }
+
+        // DİNAMİK LİSTE GÖRÜNÜRLÜK (ZOOM) KONTROLÜ
+        var senderCard = row.querySelector('.user-card-v0');
+        // Eğer sütun zoom sebebiyle gizlenmişse (offsetParent null döner) işlemi durdur.
+        if (!senderCard || senderCard.offsetParent === null) {
+            st.innerText = `HATA: #${formId} için gönderen ismi ekranda gizli! Lütfen ekranı uzaklaştırın (Zoom out).`;
+            run = false;
+            row.style.outline = '2px solid #dc3545';
+            row.style.backgroundColor = '#f8d7da';
+            return false;
+        }
+
+        var isSameUser = senderCard.textContent.toLocaleLowerCase('tr-TR').includes(aktifKullanici.toLocaleLowerCase('tr-TR'));
+
+        // Gönderen farklıysa atla
+        if (!isSameUser) {
             st.innerText = `⏭ #${formId} atlandı (Gönderen farklı).`;
-            if (row) {
-                row.style.outline = '1px dashed #6c757d';
-                row.style.backgroundColor = '#f8f9fa';
-                var cb = row.querySelector('.w-row-cb');
-                if (cb) cb.checked = false;
-            }
+            row.style.outline = '1px dashed #6c757d';
+            row.style.backgroundColor = '#f8f9fa';
+            var cb = row.querySelector('.w-row-cb');
+            if (cb) cb.checked = false;
             selectedTasks.delete(url);
             updateCounter();
             await sleep(600);
             return true;
         }
 
-        if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            row.style.outline = '3px solid #ff9800';
-            row.style.backgroundColor = '#fff3cd';
-        }
+        // Onaylama işlemleri başlıyor
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.style.outline = '3px solid #ff9800';
+        row.style.backgroundColor = '#fff3cd';
 
         st.innerText = `Yükleniyor: #${formId}...`;
         ifr.src = url;
+
         await sleep(3500);
 
         var doc = ifr.contentDocument || ifr.contentWindow.document;
         var clickSuccess = false;
 
-        // Buton arama döngüsü
         for (var k = 0; k < 10; k++) {
             var rad = doc.querySelector('input[type="radio"][value="Evet"]');
             var buttons = Array.from(doc.querySelectorAll('button'));
@@ -220,14 +240,12 @@
 
         if (!clickSuccess) {
             st.innerText = `✖ #${formId} buton bulunamadı!`;
-            if (row) {
-                row.style.outline = '2px solid #dc3545';
-                row.style.backgroundColor = '#f8d7da';
-            }
+            row.style.outline = '2px solid #dc3545';
+            row.style.backgroundColor = '#f8d7da';
             return false;
         }
 
-        // Açılır onay popup'ı (modal) varsa onayla
+        // Modal (Açılır onay penceresi)
         await sleep(1000);
         var modalBtn = doc.querySelector('.confirmation-modal__actions button.btn-success, .modal-dialog button.btn-success, .modal-dialog button.btn-primary');
         if (!modalBtn) {
@@ -240,7 +258,7 @@
         }
         if (modalBtn) modalBtn.click();
 
-        // 5. DOĞRULAMA (REFRESH KONTROLÜ)
+        // REFRESH CHECK DOĞRULAMASI
         st.innerText = `Doğrulanıyor: #${formId}...`;
         await sleep(2000);
 
@@ -250,35 +268,29 @@
         var checkDoc = ifr.contentDocument || ifr.contentWindow.document;
         var checkButtons = Array.from(checkDoc.querySelectorAll('button'));
         var checkBtn = checkButtons.find(b => b.innerText.includes('Onayla')) || checkDoc.querySelector('button.btn-success');
-        
         var isApproved = !checkBtn || checkDoc.body.innerText.includes('Onaylandı') || checkDoc.body.innerText.includes('Onaylanan Süreç');
 
         if (isApproved) {
-            st.innerText = `✔ #${formId} onaylandı ve doğrulandı!`;
+            st.innerText = `✔ #${formId} onaylandı!`;
             selectedTasks.delete(url);
-
-            if (row) {
-                row.style.outline = '2px solid #28a745';
-                row.style.backgroundColor = '#d4edda';
-                var cbDone = row.querySelector('.w-row-cb');
-                if (cbDone) {
-                    cbDone.checked = false;
-                    cbDone.disabled = true;
-                }
+            row.style.outline = '2px solid #28a745';
+            row.style.backgroundColor = '#d4edda';
+            var cbDone = row.querySelector('.w-row-cb');
+            if (cbDone) {
+                cbDone.checked = false;
+                cbDone.disabled = true;
             }
             updateCounter();
             return true;
         } else {
             st.innerText = `✖ #${formId} sunucu onaylamadı!`;
-            if (row) {
-                row.style.outline = '2px solid #dc3545';
-                row.style.backgroundColor = '#f8d7da';
-            }
+            row.style.outline = '2px solid #dc3545';
+            row.style.backgroundColor = '#f8d7da';
             return false;
         }
     }
 
-    // 6. BUTON TETİKLEYİCİLERİ
+    // 5. BUTON TETİKLEYİCİLERİ
     document.getElementById('w-btn-select-all').onclick = function() {
         var total = document.querySelectorAll('a[href*="/forms/submission?id="]').length;
         if (selectedTasks.size === total) {
@@ -292,13 +304,13 @@
 
     document.getElementById('w-btn-go').onclick = async function() {
         if (selectedTasks.size === 0) {
-            alert('Lütfen önce onaylamak istediğiniz formları işaretleyin!');
+            st.innerText = 'Lütfen onaylanacak formları seçin!';
             return;
         }
         if (run) return;
         run = true;
 
-        var tasks = Array.from(selectedTasks.entries());
+        var tasks = Array.from(selectedTasks.keys());
         for (var i = 0; i < tasks.length; i++) {
             if (!run) break;
             await doOne(tasks[i]);
@@ -306,7 +318,9 @@
         }
 
         run = false;
-        st.innerText = 'Tüm işlemler tamamlandı!';
+        if (selectedTasks.size === 0) {
+            st.innerText = 'Tüm işlemler tamamlandı!';
+        }
     };
 
     document.getElementById('w-btn-stop').onclick = function() {
@@ -316,6 +330,7 @@
 
     document.getElementById('w-x').onclick = function() {
         run = false;
+        clearInterval(userCheckInterval);
         if (observer) observer.disconnect();
         document.querySelectorAll('tr[data-index]').forEach(r => {
             r.style.outline = '';
