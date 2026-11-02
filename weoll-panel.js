@@ -4,24 +4,28 @@
         return;
     }
 
-    // 1. OTURUM AÇAN KULLANICININ ADINI DİNAMİK OLARAK AL
+    // 1. OTURUM AÇAN KULLANICININ ADINI SOL MENÜDEN OKU
     function getAktifKullaniciAdi() {
+        var myName = "";
         var nameNode = document.querySelector('a.myspace-button div[style*="font-size: 14px"]');
+        
         if (nameNode && nameNode.textContent.trim()) {
-            return nameNode.textContent.trim();
+            myName = nameNode.textContent.trim();
+        } else {
+            var mySpace = document.querySelector('a.myspace-button');
+            if (mySpace && mySpace.textContent.trim()) {
+                var satirlar = mySpace.textContent.split('\n').map(s => s.trim()).filter(Boolean);
+                if (satirlar.length > 0) myName = satirlar[0];
+            }
         }
-        var mySpace = document.querySelector('a.myspace-button');
-        if (mySpace && mySpace.textContent.trim()) {
-            var satirlar = mySpace.textContent.split('\n').map(s => s.trim()).filter(Boolean);
-            if (satirlar.length > 0) return satirlar[0];
-        }
-        return null;
+        return myName;
     }
 
     var aktifKullanici = getAktifKullaniciAdi();
 
+    // İSİM BULUNAMAZSA İŞLEMİ İPTAL ET
     if (!aktifKullanici) {
-        alert("Oturum açmış kullanıcı adı sol menüden tespit edilemedi. Lütfen sayfayı yenileyip tekrar deneyin.");
+        alert("Sol menüden kullanıcı adınız okunamadı!\n\nLütfen sol menünün açık olduğundan ve ekranın çok yakınlaştırılmadığından emin olup tekrar deneyin.");
         return;
     }
 
@@ -40,7 +44,7 @@
         <div id="w-target" style="padding:6px;background:#f8f9fa;border-left:4px solid #004d71;margin-bottom:8px;font-size:12px;">
             <b id="w-count-text">0 form seçildi</b>
         </div>
-        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Aktif Kullanıcı: <b>${aktifKullanici}</b></div>
+        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Kullanıcı: <b>${aktifKullanici}</b></div>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
             <button id="w-btn-select-all" style="flex:1;background:#6c757d;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Tümünü Seç</button>
             <button id="w-btn-go" style="flex:1.4;background:#28a745;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Seçilenleri Onayla</button>
@@ -65,7 +69,6 @@
         if (thCb) thCb.checked = (total > 0 && selectedTasks.size === total);
     }
 
-    // Satırdaki gönderen ismiyle aktif kullanıcıyı karşılaştırır
     function isAyniKullanici(row) {
         var senderCard = row.querySelector('.user-card-v0') || row;
         return senderCard.textContent.toLocaleLowerCase('tr-TR').includes(aktifKullanici.toLocaleLowerCase('tr-TR'));
@@ -156,7 +159,7 @@
     }
     attachCheckboxes();
 
-    // 4. İŞLEME VE KONTROL (REFRESH CHECK) MOTORU
+    // 4. İŞLEME VE KONTROL (REFRESH CHECK)
     async function doOne(task) {
         var url = task[0];
         var info = task[1];
@@ -164,7 +167,7 @@
         var formId = info.formId;
         var ayniKullanici = info.ayniKullanici;
 
-        // Gönderen ile aktif oturum sahibi farklıysa işlem yapma, atla
+        // Gönderen farklıysa hiçbir şey yapmadan atla
         if (!ayniKullanici) {
             st.innerText = `⏭ #${formId} atlandı (Gönderen farklı).`;
             if (row) {
@@ -187,12 +190,12 @@
 
         st.innerText = `Yükleniyor: #${formId}...`;
         ifr.src = url;
-
         await sleep(3500);
 
         var doc = ifr.contentDocument || ifr.contentWindow.document;
         var clickSuccess = false;
 
+        // Buton arama döngüsü
         for (var k = 0; k < 10; k++) {
             var rad = doc.querySelector('input[type="radio"][value="Evet"]');
             var buttons = Array.from(doc.querySelectorAll('button'));
@@ -224,7 +227,7 @@
             return false;
         }
 
-        // Açılır onay penceresi (modal) varsa tıkla
+        // Açılır onay popup'ı (modal) varsa onayla
         await sleep(1000);
         var modalBtn = doc.querySelector('.confirmation-modal__actions button.btn-success, .modal-dialog button.btn-success, .modal-dialog button.btn-primary');
         if (!modalBtn) {
@@ -237,7 +240,7 @@
         }
         if (modalBtn) modalBtn.click();
 
-        // 5. DOĞRULAMA (REFRESH İLE KONTROL)
+        // 5. DOĞRULAMA (REFRESH KONTROLÜ)
         st.innerText = `Doğrulanıyor: #${formId}...`;
         await sleep(2000);
 
