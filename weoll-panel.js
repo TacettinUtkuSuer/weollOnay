@@ -1,228 +1,219 @@
-(function() {
-    if (document.getElementById('weoll-panel')) return;
+(function () {
+  'use strict';
+  if (window.__weoll) { window.__weoll.destroy(); return; } // 2. tıklama = kapat
 
-    // 1. ARAYÜZ
-    var p = document.createElement('div');
-    p.id = 'weoll-panel';
-    p.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#fff;border:2px solid #004d71;border-radius:8px;padding:12px;width:300px;font-family:sans-serif;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
-    p.innerHTML = `
-        <div style="font-weight:bold;margin-bottom:6px;display:flex;justify-content:space-between;color:#004d71;">
-            <span>Weoll Net Onay</span>
-            <span style="cursor:pointer;color:#888;font-size:14px;" id="w-x">✖</span>
-        </div>
-        <div id="w-warning" style="display:none;background:#f8d7da;color:#dc3545;padding:8px;border-radius:4px;margin-bottom:8px;font-weight:bold;border:1px solid #dc3545;font-size:11px;">
-            <!-- Uyarılar buraya gelecek -->
-        </div>
-        <div id="w-st" style="margin-bottom:8px;color:#555;">Hazırlanıyor...</div>
-        <div style="display:flex;gap:4px;margin-bottom:8px;">
-            <button id="w-btn-all" style="flex:1;background:#6c757d;color:#fff;border:none;padding:8px;border-radius:4px;cursor:pointer;">Tümünü Seç</button>
-            <button id="w-btn-go" style="flex:1.5;background:#28a745;color:#fff;border:none;padding:8px;border-radius:4px;cursor:pointer;font-weight:bold;">Seçilenleri Onayla</button>
-        </div>
-        <iframe id="w-if" style="width:100%;height:80px;border:1px dashed #ccc;border-radius:4px;background:#fafafa;"></iframe>
-    `;
-    document.body.appendChild(p);
-
-    var ifr = document.getElementById('w-if');
-    var st = document.getElementById('w-st');
-    var warningEl = document.getElementById('w-warning');
-    var btnGo = document.getElementById('w-btn-go');
-    
-    var selected = new Set();
-    window.weollMyName = null;
-
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    // 2. ÇİFTE KONTROL (SOL MENÜ + ZOOM)
-    setInterval(function() {
-        // Sol menüden ismi oku[cite: 1, 2]
-        var myName = "";
-        var nameNode = document.querySelector('a.myspace-button div[style*="font-size: 14px"]');
-        if (nameNode && nameNode.offsetWidth > 0) {
-            myName = nameNode.textContent.trim();
-        }
-
-        // Gönderen sütununu kontrol et[cite: 2]
-        var isVisible = false;
-        document.querySelectorAll('tr[data-index]').forEach(row => {
-            var userCard = row.querySelector('.user-card-v0');
-            if (userCard && userCard.offsetWidth > 0) isVisible = true;
-        });
-        
-        var rowsExist = document.querySelectorAll('tr[data-index]').length > 0;
-
-        // Uyarı Mantığı
-        if (rowsExist && (!myName || !isVisible)) {
-            var hataMsj = "⚠️ İŞLEM DURDURULDU:<br>";
-            if (!myName) hataMsj += "- Sol menü kapalı (İsim okunamıyor).<br>";
-            if (!isVisible) hataMsj += "- 'Gönderen' sütunu gizli (Ekranı uzaklaştırın).<br>";
-            
-            warningEl.innerHTML = hataMsj;
-            warningEl.style.display = 'block';
-            btnGo.disabled = true;
-            btnGo.style.opacity = '0.4';
-            btnGo.style.cursor = 'not-allowed';
-            window.weollMyName = null; 
-        } else if (rowsExist) {
-            warningEl.style.display = 'none';
-            btnGo.disabled = false;
-            btnGo.style.opacity = '1';
-            btnGo.style.cursor = 'pointer';
-            window.weollMyName = myName; 
-            st.innerHTML = "Hazır. Kullanıcı: <b>" + myName + "</b>";
-        }
-    }, 1000);
-
-    // 3. BASİT CHECKBOX EKLEME[cite: 2]
-    setInterval(function() {
-        document.querySelectorAll('tr[data-index]').forEach(row => {
-            var link = row.querySelector('a[href*="/forms/submission?id="]');
-            var td = row.querySelector('td.row-icon-table');
-            if (!link || !td || td.querySelector('.w-cb')) return;
-            
-            var orig = td.querySelector('div');
-            if (orig) orig.style.display = 'none';
-            
-            var cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.className = 'w-cb';
-            cb.style.cssText = 'width:16px;height:16px;cursor:pointer;';
-            cb.checked = selected.has(link.href);
-            
-            cb.onchange = function() {
-                if (this.checked) {
-                    selected.add(link.href);
-                    row.style.backgroundColor = '#e8f4fd';
-                } else {
-                    selected.delete(link.href);
-                    row.style.backgroundColor = '';
-                }
-            };
-            td.appendChild(cb);
-        });
-    }, 1000);
-
-    document.getElementById('w-btn-all').onclick = function() {
-        var links = document.querySelectorAll('a[href*="/forms/submission?id="]');
-        var cbs = document.querySelectorAll('.w-cb');
-        var selectAll = selected.size < links.length;
-        
-        links.forEach((link, i) => {
-            var row = link.closest('tr');
-            if (selectAll) {
-                selected.add(link.href);
-                if (cbs[i]) cbs[i].checked = true;
-                if (row) row.style.backgroundColor = '#e8f4fd';
-            } else {
-                selected.delete(link.href);
-                if (cbs[i]) cbs[i].checked = false;
-                if (row) row.style.backgroundColor = '';
-            }
-        });
-    };
-
-    document.getElementById('w-x').onclick = function() {
-        p.remove();
-        document.querySelectorAll('.w-cb').forEach(c => c.remove());
-        document.querySelectorAll('td.row-icon-table div').forEach(d => d.style.display = '');
-    };
-
-    // 4. ONAY İŞLEMİ VE DOĞRULAMA (REFRESH)
-    async function processForm(url) {
-        var link = document.querySelector(`a[href="${url}"]`);
-        var row = link ? link.closest('tr') : null;
-        var formId = link ? link.innerText.trim() : "Form";
-        
-        // Eşleşme kararı[cite: 2]
-        var isSelf = false;
-        var userCard = row ? row.querySelector('.user-card-v0') : null;
-        if (userCard && window.weollMyName && userCard.textContent.toLowerCase().includes(window.weollMyName.toLowerCase())) {
-            isSelf = true;
-        }
-
-        st.innerHTML = `<b>#${formId}</b> işleniyor... <br>${isSelf ? '(Evet + Onay)' : '(Sadece Onay)'}`;
-        if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            row.style.outline = '3px solid #ff9800';
-        }
-
-        ifr.src = url;
-        await sleep(3500);
-
-        var doc = ifr.contentDocument || ifr.contentWindow.document;
-        var clicked = false;
-
-        for (var i = 0; i < 8; i++) {
-            var rad = doc.querySelector('input[type="radio"][value="Evet"]');
-            var btn = Array.from(doc.querySelectorAll('button')).find(b => b.innerText.includes('Onayla')) || doc.querySelector('button.btn-success');
-            
-            if (isSelf && rad && btn) {
-                var lbl = doc.querySelector(`label[for="${rad.id}"]`) || rad.parentElement;
-                if (lbl) lbl.click();
-                rad.click();
-                await sleep(500);
-                btn.click();
-                clicked = true;
-                break;
-            } else if (!isSelf && btn) {
-                btn.click();
-                clicked = true;
-                break;
-            }
-            await sleep(1000);
-        }
-
-        if (!clicked) {
-            st.innerHTML = `<b>#${formId}</b> HATA: Buton bulunamadı!`;
-            if (row) row.style.outline = '2px solid #dc3545';
-            return;
-        }
-
-        // Pop-up onayı
-        await sleep(1000);
-        var modalBtn = doc.querySelector('.modal-dialog button.btn-success, .confirmation-modal__actions button.btn-success');
-        if (modalBtn) {
-            modalBtn.click();
-        } else {
-            Array.from(doc.querySelectorAll('.modal.show button, .confirmation-modal button')).forEach(b => {
-                if(b.innerText.includes('Evet') || b.innerText.includes('Onayla')) b.click();
-            });
-        }
-
-        st.innerHTML = `<b>#${formId}</b> kontrol ediliyor...`;
-        await sleep(2000);
-        
-        // Yenile ve Doğrula
-        ifr.src = url + "&check=1";
-        await sleep(3000);
-        
-        var checkDoc = ifr.contentDocument || ifr.contentWindow.document;
-        var checkBtn = Array.from(checkDoc.querySelectorAll('button')).find(b => b.innerText.includes('Onayla'));
-        
-        if (!checkBtn || checkDoc.body.innerText.includes('Onaylandı')) {
-            st.innerHTML = `<b>#${formId}</b> Başarılı!`;
-            if (row) {
-                row.style.outline = '';
-                row.style.backgroundColor = '#d4edda';
-                var cb = row.querySelector('.w-cb');
-                if (cb) { cb.checked = false; cb.disabled = true; }
-            }
-            selected.delete(url);
-        } else {
-            st.innerHTML = `<b>#${formId}</b> HATA: Sunucu onaylamadı!`;
-            if (row) row.style.outline = '2px solid #dc3545';
-        }
+  const SEL = {
+    user: 'a.myspace-button div[style*="font-size: 14px"]',
+    rows: '#portal-table tr[data-index]',
+    icon: 'td.row-icon-table div',
+    link: 'a[href*="/forms/submission?id="]',
+    card: '.user-card-v0',
+    yes: 'input[type="radio"][value="Evet"]',
+    modal: '.confirmation-modal__actions button.btn-success, .modal-dialog button.btn-success'
+  };
+  const GREEN = '#c8f7c5', RED = '#f9c6c6';
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr');
+  const visible = el => !!el && el.offsetWidth > 0 && el.offsetHeight > 0 && getComputedStyle(el).display !== 'none';
+  async function waitFor(fn, ms) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      try { const v = fn(); if (v) return v; } catch (e) {}
+      await sleep(250);
     }
+    return null;
+  }
 
-    btnGo.onclick = async function() {
-        if (selected.size === 0) return alert("Lütfen form seçin!");
-        
-        btnGo.disabled = true;
-        var urls = Array.from(selected);
-        for (var url of urls) {
-            await processForm(url);
-            await sleep(1500);
-        }
-        st.innerHTML = `<b>İşlemler tamamlandı!</b>`;
-        btnGo.disabled = false;
-    };
+  /* ---------- Panel ---------- */
+  const panel = document.createElement('div');
+  panel.id = 'wb-panel';
+  panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;width:250px;background:#fff;border:1px solid #888;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.35);font:12px Arial,sans-serif;padding:8px;color:#222';
+  panel.innerHTML =
+    '<div style="font-weight:bold;margin-bottom:6px">Weoll Otomatik Onay</div>' +
+    '<div style="display:flex;gap:4px;margin-bottom:6px">' +
+    '<button id="wb-all" style="flex:1">Tümünü Seç</button>' +
+    '<button id="wb-start" style="flex:1">Başlat</button>' +
+    '<button id="wb-stop" style="flex:1">Durdur</button></div>' +
+    '<div id="wb-info" style="min-height:34px;padding:4px;border-radius:4px;background:#eee"></div>';
+  document.body.appendChild(panel);
+  const $ = id => panel.querySelector(id);
+  const btnAll = $('#wb-all'), btnStart = $('#wb-start'), btnStop = $('#wb-stop'), info = $('#wb-info');
+
+  /* ---------- iframe ---------- */
+  const fr = document.createElement('iframe');
+  fr.id = 'w-if';
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1280px;height:900px;opacity:0;pointer-events:none;border:0;z-index:-1';
+  document.body.appendChild(fr);
+  function load(url) {
+    return new Promise(res => {
+      const t = setTimeout(res, 20000);
+      fr.onload = () => { clearTimeout(t); res(); };
+      fr.src = url;
+    }).then(() => sleep(3500));
+  }
+
+  /* ---------- Durum ---------- */
+  let running = false, warn = false;
+  function setInfo(msg, bad) {
+    info.textContent = msg;
+    info.style.background = bad ? '#f8d0d0' : '#eee';
+    info.style.color = bad ? '#b00020' : '#222';
+    info.style.fontWeight = bad ? 'bold' : 'normal';
+  }
+
+  /* ---------- Ön kontroller ---------- */
+  function getUser() {
+    const el = document.querySelector(SEL.user);
+    return visible(el) ? el.textContent.trim() : '';
+  }
+  function senderOk() {
+    return [...document.querySelectorAll('tr ' + SEL.card)].some(visible);
+  }
+  function safety() {
+    const user = getUser(), sender = senderOk();
+    return { ok: !!user && sender, user };
+  }
+
+  /* ---------- Checkbox enjeksiyonu ---------- */
+  function inject() {
+    document.querySelectorAll(SEL.rows).forEach(row => {
+      if (row.querySelector('.wb-cb')) return;
+      const icon = row.querySelector(SEL.icon);
+      if (!icon) return;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'wb-cb';
+      cb.style.cssText = 'width:18px;height:18px;cursor:pointer';
+      cb.addEventListener('click', e => e.stopPropagation());
+      icon.style.display = 'none';
+      icon.parentNode.insertBefore(cb, icon);
+    });
+  }
+  const findRow = href => [...document.querySelectorAll(SEL.rows)].find(r => {
+    const a = r.querySelector(SEL.link);
+    return a && a.href === href;
+  });
+  function paint(href, color, uncheck) {
+    const r = findRow(href);
+    if (!r) return;
+    r.style.setProperty('background', color, 'important');
+    r.querySelectorAll('td').forEach(td => td.style.setProperty('background', color, 'important'));
+    if (uncheck) { const cb = r.querySelector('.wb-cb'); if (cb) cb.checked = false; }
+  }
+
+  /* ---------- Form içi yardımcılar ---------- */
+  const findApprove = doc =>
+    [...doc.querySelectorAll('button')].find(b => /^onayla$/i.test(b.textContent.trim())) ||
+    doc.querySelector('button.btn-success');
+  function setYes(doc, radio) {
+    const lbl = radio.closest('label') || (radio.id && doc.querySelector('label[for="' + radio.id + '"]'));
+    if (lbl) lbl.click();
+    radio.click();
+    if (!radio.checked) radio.checked = true;
+    ['input', 'change'].forEach(t => radio.dispatchEvent(new Event(t, { bubbles: true })));
+  }
+  const findModalBtn = doc =>
+    doc.querySelector(SEL.modal) ||
+    [...doc.querySelectorAll('.modal button, .modal-dialog button')]
+      .find(b => /^(evet|onayla)$/i.test(b.textContent.trim()) && visible(b));
+
+  /* ---------- Tek form işleme ---------- */
+  async function processOne(item, userNorm) {
+    await load(item.href);
+    let doc = fr.contentDocument; // aynı origin olmalı
+    if (!(await waitFor(() => findApprove(fr.contentDocument), 10000))) return 'Onayla butonu bulunamadı';
+    doc = fr.contentDocument;
+
+    const s = norm(item.sender);
+    if (!s) return 'Gönderen okunamadı';
+    const same = s === userNorm || s.includes(userNorm) || userNorm.includes(s);
+    if (same) { // DURUM A
+      const radio = await waitFor(() => doc.querySelector(SEL.yes), 5000);
+      if (!radio) return '"Evet" radyosu bulunamadı';
+      setYes(doc, radio);
+      await sleep(400);
+    }
+    findApprove(doc).click(); // DURUM B doğrudan buraya düşer
+    const m = await waitFor(() => findModalBtn(doc), 5000);
+    if (m) m.click();
+    await sleep(2000);
+
+    // CHECK
+    await load(item.href + (item.href.includes('?') ? '&' : '?') + 'check=1');
+    const d = fr.contentDocument;
+    const ok = await waitFor(() => {
+      const txt = d.body.innerText || '';
+      return txt.length > 50 && (!findApprove(d) || /Onaylandı|Onaylanan Süreç/.test(txt));
+    }, 4000);
+    return ok ? null : 'Doğrulama başarısız';
+  }
+
+  /* ---------- Ana döngü ---------- */
+  async function run() {
+    const c = safety();
+    if (!c.ok) return;
+    const userNorm = norm(c.user);
+    const items = [...document.querySelectorAll(SEL.rows)]
+      .filter(r => r.querySelector('.wb-cb') && r.querySelector('.wb-cb').checked)
+      .map(r => {
+        const a = r.querySelector(SEL.link), card = r.querySelector(SEL.card);
+        return a ? { href: a.href, sender: card ? card.innerText : '' } : null;
+      }).filter(Boolean);
+    if (!items.length) { setInfo('Önce form seçin.'); return; }
+
+    running = true; btnStart.disabled = true;
+    let okN = 0, failN = 0;
+    for (let i = 0; i < items.length && running; i++) {
+      setInfo('İşleniyor ' + (i + 1) + '/' + items.length + ' (✓' + okN + ' ✗' + failN + ')');
+      let err;
+      try { err = await processOne(items[i], userNorm); }
+      catch (e) { err = 'Hata: ' + e.message; }
+      if (!running) { err = err || null; }
+      if (err) { failN++; paint(items[i].href, RED, false); console.warn('[Weoll]', items[i].href, err); }
+      else { okN++; paint(items[i].href, GREEN, true); }
+    }
+    const stopped = !running;
+    running = false;
+    fr.src = 'about:blank';
+    setInfo((stopped ? 'Durduruldu. ' : 'Bitti. ') + '✓' + okN + ' ✗' + failN);
+  }
+
+  /* ---------- Olaylar ---------- */
+  btnAll.onclick = () => {
+    const cbs = [...document.querySelectorAll('.wb-cb')];
+    const all = cbs.every(c => c.checked);
+    cbs.forEach(c => c.checked = !all);
+  };
+  btnStart.onclick = () => { if (!running) run(); };
+  btnStop.onclick = () => { running = false; };
+
+  const timer = setInterval(() => {
+    inject();
+    const c = safety();
+    if (!c.ok) {
+      warn = true;
+      if (running) running = false; // güvenlik: işlemi kes
+      btnStart.disabled = true;
+      setInfo('Sol menüyü açın veya ekranı uzaklaştırın' +
+        (!c.user ? ' (kullanıcı adı okunamıyor)' : '') +
+        (!senderOk() ? ' (Gönderen sütunu gizli)' : ''), true);
+    } else {
+      btnStart.disabled = running;
+      if (warn) { warn = false; setInfo('Hazır. Kullanıcı: ' + c.user); }
+      else if (!running && !info.textContent) setInfo('Hazır. Kullanıcı: ' + c.user);
+    }
+  }, 1000);
+  inject();
+
+  window.__weoll = {
+    destroy() {
+      clearInterval(timer); running = false;
+      panel.remove(); fr.remove();
+      document.querySelectorAll('.wb-cb').forEach(cb => {
+        const ic = cb.nextElementSibling; if (ic) ic.style.display = '';
+        cb.remove();
+      });
+      delete window.__weoll;
+    }
+  };
 })();
