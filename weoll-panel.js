@@ -7,19 +7,23 @@
     var run = false;
     var selectedUrls = new Set();
 
-    // 1. Panel Arayüzü
+    // Giriş yapmış kullanıcının adını sol menüdeki profil kartından dinamik al
+    var myNameEl = document.querySelector('a.myspace-button [style*="font-size: 14px"]');
+    var myName = myNameEl ? myNameEl.innerText.trim() : "Tacettin Utku SÜER";
+
+    // Panel Arayüzü
     var p = document.createElement('div');
     p.id = 'weoll-panel';
     p.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#fff;border:2px solid #004d71;border-radius:8px;padding:12px;width:300px;font-family:sans-serif;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
     p.innerHTML = `
         <div style="font-weight:bold;margin-bottom:8px;display:flex;justify-content:space-between;color:#004d71;">
-            <span>Weoll Toplu Onay Paneli</span>
+            <span>Weoll Onay Paneli</span>
             <span style="cursor:pointer;font-weight:bold;color:#888;" id="w-x">✖</span>
         </div>
         <div id="w-target" style="padding:6px;background:#f8f9fa;border-left:4px solid #004d71;margin-bottom:8px;font-size:12px;">
             <b id="w-count-text">0 form seçildi</b>
         </div>
-        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Hazır. Onaylamak istediklerinizi seçin.</div>
+        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Kullanıcı: ${myName}</div>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
             <button id="w-btn-select-all" style="flex:1;background:#6c757d;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Tümünü Seç</button>
             <button id="w-btn-go" style="flex:1.4;background:#28a745;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Seçilenleri Onayla</button>
@@ -37,22 +41,22 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // Paneldeki sayaç metnini günceller
-    function updateCounter() {
-        var total = document.querySelectorAll('a[href*="/forms/submission?id="]').length;
-        countText.innerText = selectedUrls.size + ' / ' + total + ' form seçildi';
-        
-        var thCb = document.getElementById('w-th-cb');
-        if (thCb) {
-            thCb.checked = (total > 0 && selectedUrls.size === total);
-        }
+    function getAllFormLinks() {
+        return Array.from(document.querySelectorAll('a[href*="/forms/submission?id="]'));
     }
 
-    // 2. Tabloya Checkbox'ları Yerleştirme
+    function updateCounter() {
+        var total = getAllFormLinks().length;
+        countText.innerText = selectedUrls.size + ' / ' + total + ' form seçildi';
+        var thCb = document.getElementById('w-th-cb');
+        if (thCb) thCb.checked = (total > 0 && selectedUrls.size === total);
+    }
+
+    // Tabloya kutucukları ekle
     function attachCheckboxes() {
         var th = document.querySelector('th.row-icon-table');
         if (th && !document.getElementById('w-th-cb')) {
-            th.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;"><input type="checkbox" id="w-th-cb" title="Tümünü Seç / Kaldır" style="cursor:pointer;width:16px;height:16px;"></div>';
+            th.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;"><input type="checkbox" id="w-th-cb" title="Tümünü Seç" style="cursor:pointer;width:16px;height:16px;"></div>';
             document.getElementById('w-th-cb').onchange = function() {
                 toggleSelectAll(this.checked);
             };
@@ -67,8 +71,8 @@
             var url = link.href;
 
             if (!iconTd.querySelector('.w-row-cb')) {
-                var originalIcon = iconTd.querySelector('div');
-                if (originalIcon) originalIcon.style.display = 'none';
+                var origIcon = iconTd.querySelector('div');
+                if (origIcon) origIcon.style.display = 'none';
 
                 var cbWrapper = document.createElement('div');
                 cbWrapper.style.cssText = 'display:flex;justify-content:center;align-items:center;height:100%;width:100%;';
@@ -94,18 +98,14 @@
                 cbWrapper.appendChild(cb);
                 iconTd.appendChild(cbWrapper);
 
-                if (selectedUrls.has(url)) {
-                    row.style.backgroundColor = '#e8f4fd';
-                }
+                if (selectedUrls.has(url)) row.style.backgroundColor = '#e8f4fd';
             }
         });
-
         updateCounter();
     }
 
     function toggleSelectAll(select) {
-        var links = document.querySelectorAll('a[href*="/forms/submission?id="]');
-        links.forEach(function(link) {
+        getAllFormLinks().forEach(function(link) {
             var url = link.href;
             var row = link.closest('tr');
             var cb = row ? row.querySelector('.w-row-cb') : null;
@@ -125,23 +125,21 @@
 
     var tableBody = document.querySelector('#portal-table tbody');
     if (tableBody) {
-        var observer = new MutationObserver(function() {
-            attachCheckboxes();
-        });
+        var observer = new MutationObserver(attachCheckboxes);
         observer.observe(tableBody, { childList: true });
     }
-
     attachCheckboxes();
 
-    // 3. İsim Kontrolü ve Onaylama Motoru
+    // Formu iframe içinde açıp kurallara göre onaylama
     async function doOne(url) {
-        var link = document.querySelector(`a[href="${url}"]`);
+        // Linki doğrudan nesne üzerinden bul (URL format farkı yaşanmasın)
+        var link = getAllFormLinks().find(a => a.href === url);
         var formId = link ? link.innerText.trim() : 'Form';
         var row = link ? link.closest('tr') : null;
 
-        // Gönderen kısmında "Tacettin Utku SÜER" ismi geçiyor mu?
+        // Gönderen kontrolü
         var isTacettin = false;
-        if (row && row.innerText.includes("Tacettin Utku SÜER")) {
+        if (row && row.innerText.toLowerCase().includes(myName.toLowerCase())) {
             isTacettin = true;
         }
 
@@ -155,34 +153,40 @@
         st.innerText = `İşleniyor: #${formId} ${islemTipi}...`;
         ifr.src = url;
 
-        await sleep(3000); // Form yükleme beklemesi
+        await sleep(3500); // Sayfa ve Formio yüklenme payı
 
         var doc = ifr.contentDocument || ifr.contentWindow.document;
 
-        for (var k = 0; k < 10; k++) {
+        for (var k = 0; k < 12; k++) {
+            // Buton ve Radyo Butonlarını ara
             var rad = doc.querySelector('input[type="radio"][value="Evet"]');
-            var btn = doc.querySelector('button.btn-success');
-            var success = false;
-            var msg = '';
+            var buttons = Array.from(doc.querySelectorAll('button'));
+            var btn = buttons.find(b => b.innerText.includes('Onayla')) || doc.querySelector('button.btn-success');
 
-            // 1. Koşul: İsim eşleşiyorsa "Evet" ve "Onayla" tıkla
-            if (isTacettin && rad && btn) {
-                rad.click();
-                await sleep(400);
-                btn.click();
-                success = true;
-                msg = 'Evet + Onay';
-            } 
-            // 2. Koşul: İsim eşleşmiyorsa sadece "Onayla" tıkla
-            else if (!isTacettin && btn) {
-                btn.click();
-                success = true;
-                msg = 'Sadece Onay';
+            var success = false;
+
+            if (isTacettin) {
+                if (rad && btn) {
+                    // Formio radio butonunu tetikle
+                    rad.checked = true;
+                    rad.dispatchEvent(new Event('input', { bubbles: true }));
+                    rad.dispatchEvent(new Event('change', { bubbles: true }));
+                    var lbl = doc.querySelector(`label[for="${rad.id}"]`) || rad.parentElement;
+                    if (lbl) lbl.click();
+
+                    await sleep(600);
+                    btn.click();
+                    success = true;
+                }
+            } else {
+                if (btn) {
+                    btn.click();
+                    success = true;
+                }
             }
 
-            // İşlem başarılıysa UI güncelle
             if (success) {
-                st.innerText = `✔ #${formId} onaylandı! (${msg})`;
+                st.innerText = `✔ #${formId} onaylandı!`;
                 selectedUrls.delete(url);
 
                 if (row) {
@@ -199,10 +203,10 @@
                 return true;
             }
 
-            await sleep(1000); // Butonlar henüz yüklenmediyse bekle ve tekrar dene
+            await sleep(1000);
         }
 
-        st.innerText = `✖ #${formId} gerekli butonlar bulunamadı!`;
+        st.innerText = `✖ #${formId} butonlar bulunamadı!`;
         if (row) {
             row.style.outline = '2px solid #dc3545';
             row.style.backgroundColor = '#f8d7da';
@@ -210,9 +214,9 @@
         return false;
     }
 
-    // 4. Buton İşlevleri
+    // Buton Tetikleyicileri
     document.getElementById('w-btn-select-all').onclick = function() {
-        var total = document.querySelectorAll('a[href*="/forms/submission?id="]').length;
+        var total = getAllFormLinks().length;
         if (selectedUrls.size === total) {
             toggleSelectAll(false);
             this.innerText = 'Tümünü Seç';
