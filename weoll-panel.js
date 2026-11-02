@@ -126,8 +126,13 @@
   async function processOne(item, userNorm) {
     await load(item.href);
     let doc = fr.contentDocument; // aynı origin olmalı
-    if (!(await waitFor(() => findApprove(fr.contentDocument), 10000))) return 'Onayla butonu bulunamadı';
+    if (!(await waitFor(() => findApprove(fr.contentDocument), 12000))) {
+      const t = (fr.contentDocument.body && fr.contentDocument.body.innerText) || '';
+      if (/Onaylandı|Onaylanan Süreç/.test(t)) return null; // zaten onaylı
+      return 'Onayla butonu bulunamadı';
+    }
     doc = fr.contentDocument;
+    await sleep(1500); // Formio olayları bağlansın (ilk yüklemede tık boşa gidiyordu)
 
     const s = norm(item.sender);
     if (!s) return 'Gönderen okunamadı';
@@ -150,14 +155,34 @@
     if (m) m.click();
     await sleep(2000);
 
-    // CHECK
+    // CHECK (katı): form tam render olmadan "başarılı" sayılmaz
     await load(item.href + (item.href.includes('?') ? '&' : '?') + 'check=1');
     const d = fr.contentDocument;
-    const ok = await waitFor(() => {
-      const txt = d.body.innerText || '';
-      return txt.length > 50 && (!findApprove(d) || /Onaylandı|Onaylanan Süreç/.test(txt));
-    }, 4000);
-    return ok ? null : 'Doğrulama başarısız';
+    const state = () => {
+      const txt = d.body ? (d.body.innerText || '') : '';
+      const rendered = !!d.querySelector('.formio-form') || /Cevabım/.test(txt);
+      const done = /Onaylandı|Onaylanan Süreç/.test(txt);
+      const btn = findApprove(d);
+      return { txt, rendered, done, btn };
+    };
+    let res = null;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 15000) {
+      const st = state();
+      if (st.done) { res = 'ok'; break; }
+      if (st.rendered && st.btn) { res = 'fail'; break; }          // buton hâlâ var
+      if (st.rendered && !st.btn) {                                 // render oldu, buton yok -> 2 sn sonra tekrar bak
+        await sleep(2000);
+        const st2 = state();
+        res = st2.btn ? 'fail' : 'ok';
+        break;
+      }
+      await sleep(500);
+    }
+    const fin = state();
+    LOG('check sonucu:', res, '| rendered=', fin.rendered, '| buton=', !!fin.btn, '| metin=', fin.txt.slice(0, 150).replace(/\s+/g, ' '));
+    if (res === 'ok') return null;
+    return res === 'fail' ? 'Onayla butonu hâlâ duruyor (onaylanmadı)' : 'Doğrulanamadı (form render olmadı)';
   }
 
   /* ---------- Ana döngü ---------- */
@@ -178,8 +203,12 @@
     for (let i = 0; i < items.length && running; i++) {
       setInfo('İşleniyor ' + (i + 1) + '/' + items.length + ' (✓' + okN + ' ✗' + failN + ')');
       let err;
-      try { err = await processOne(items[i], userNorm); }
-      catch (e) { err = 'Hata: ' + e.message; }
+      for (let k = 1; k <= 2 && running; k++) {          // başarısızsa 1 kez daha dene
+        try { err = await processOne(items[i], userNorm); }
+        catch (e) { err = 'Hata: ' + e.message; }
+        if (!err) break;
+        LOG('deneme', k, 'başarısız:', err);
+      }
       if (!running) { err = err || null; }
       if (err) { failN++; paint(items[i].href, RED, false); console.warn('[Weoll]', items[i].href, err); }
       else { okN++; paint(items[i].href, GREEN, true); }
