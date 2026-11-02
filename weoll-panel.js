@@ -4,35 +4,34 @@
         return;
     }
 
-    // 1. EKRAN, MENÜ VE KULLANICI ADI KONTROLÜ
-    var myNameEl = document.querySelector('a.myspace-button [style*="font-size: 14px"]');
-    var isMenuCollapsed = !document.querySelector('#navigation-wrapper .collapse.show');
-    var zoomLevel = Math.round((window.outerWidth / window.innerWidth) * 100);
-
-    // Eğer menü kapalıysa veya zoom yüzünden isim okunamıyorsa uyar
-    if (!myNameEl || isMenuCollapsed) {
-        var uyari = "⚠️ EKRAN / MENÜ UYARISI:\n";
-        if (isMenuCollapsed) uyari += "- Sol menü daraltılmış/kapalı! Gönderen isimleri doğru okunamayabilir.\n";
-        if (zoomLevel > 115) uyari += "- Ekran çok yakınlaştırılmış (Zoom: %" + zoomLevel + ").\n\n";
-        uyari += "Lütfen sol menüyü açıp ekranı %100 yapın veya işlem yapılacak adınızı onaylayın:";
-        
-        var manuelIsim = prompt(uyari, "Tacettin Utku SÜER");
-        if (!manuelIsim) {
-            alert("İşlem iptal edildi.");
-            return;
+    // 1. OTURUM AÇAN KULLANICININ ADINI DİNAMİK OLARAK AL
+    function getAktifKullaniciAdi() {
+        var nameNode = document.querySelector('a.myspace-button div[style*="font-size: 14px"]');
+        if (nameNode && nameNode.textContent.trim()) {
+            return nameNode.textContent.trim();
         }
-        var currentUserName = manuelIsim.trim();
-    } else {
-        var currentUserName = myNameEl.innerText.trim();
+        var mySpace = document.querySelector('a.myspace-button');
+        if (mySpace && mySpace.textContent.trim()) {
+            var satirlar = mySpace.textContent.split('\n').map(s => s.trim()).filter(Boolean);
+            if (satirlar.length > 0) return satirlar[0];
+        }
+        return null;
+    }
+
+    var aktifKullanici = getAktifKullaniciAdi();
+
+    if (!aktifKullanici) {
+        alert("Oturum açmış kullanıcı adı sol menüden tespit edilemedi. Lütfen sayfayı yenileyip tekrar deneyin.");
+        return;
     }
 
     var run = false;
-    var selectedTasks = new Map(); // url -> { formId, isSelf, row }
+    var selectedTasks = new Map();
 
     // 2. PANEL ARAYÜZÜ
     var p = document.createElement('div');
     p.id = 'weoll-panel';
-    p.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#fff;border:2px solid #004d71;border-radius:8px;padding:12px;width:310px;font-family:sans-serif;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
+    p.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#fff;border:2px solid #004d71;border-radius:8px;padding:12px;width:300px;font-family:sans-serif;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
     p.innerHTML = `
         <div style="font-weight:bold;margin-bottom:6px;display:flex;justify-content:space-between;color:#004d71;">
             <span>Weoll Onay Kumandası</span>
@@ -41,13 +40,13 @@
         <div id="w-target" style="padding:6px;background:#f8f9fa;border-left:4px solid #004d71;margin-bottom:8px;font-size:12px;">
             <b id="w-count-text">0 form seçildi</b>
         </div>
-        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Aktif Kullanıcı: <b>${currentUserName}</b></div>
+        <div id="w-st" style="margin-bottom:8px;color:#555;font-size:11px;">Aktif Kullanıcı: <b>${aktifKullanici}</b></div>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
             <button id="w-btn-select-all" style="flex:1;background:#6c757d;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Tümünü Seç</button>
             <button id="w-btn-go" style="flex:1.4;background:#28a745;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Seçilenleri Onayla</button>
             <button id="w-btn-stop" style="flex:0.8;background:#dc3545;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-weight:bold;">Durdur</button>
         </div>
-        <iframe id="w-if" style="width:100%;height:100px;border:1px dashed #ccc;border-radius:4px;background:#fafafa;"></iframe>
+        <iframe id="w-if" style="width:100%;height:80px;border:1px dashed #ccc;border-radius:4px;background:#fafafa;"></iframe>
     `;
     document.body.appendChild(p);
 
@@ -66,7 +65,13 @@
         if (thCb) thCb.checked = (total > 0 && selectedTasks.size === total);
     }
 
-    // 3. TABLOYA CHECKBOX EKLEME VE İSİM KARARINI LİSTEDE VERME
+    // Satırdaki gönderen ismiyle aktif kullanıcıyı karşılaştırır
+    function isAyniKullanici(row) {
+        var senderCard = row.querySelector('.user-card-v0') || row;
+        return senderCard.textContent.toLocaleLowerCase('tr-TR').includes(aktifKullanici.toLocaleLowerCase('tr-TR'));
+    }
+
+    // 3. TABLOYA CHECKBOX YERLEŞTİRME
     function attachCheckboxes() {
         var th = document.querySelector('th.row-icon-table');
         if (th && !document.getElementById('w-th-cb')) {
@@ -84,9 +89,7 @@
 
             var url = link.href;
             var formId = link.innerText.trim();
-
-            // Gönderen kontrolünü ANA SAYFADAKİ satırdan yapıyoruz
-            var isSelf = row.innerText.toLowerCase().includes(currentUserName.toLowerCase());
+            var ayniKullanici = isAyniKullanici(row);
 
             if (!iconTd.querySelector('.w-row-cb')) {
                 var origIcon = iconTd.querySelector('div');
@@ -104,7 +107,7 @@
 
                 cb.onchange = function() {
                     if (this.checked) {
-                        selectedTasks.set(url, { formId: formId, isSelf: isSelf, row: row });
+                        selectedTasks.set(url, { formId: formId, ayniKullanici: ayniKullanici, row: row });
                         row.style.backgroundColor = '#e8f4fd';
                     } else {
                         selectedTasks.delete(url);
@@ -131,10 +134,10 @@
 
             var url = link.href;
             var formId = link.innerText.trim();
-            var isSelf = row.innerText.toLowerCase().includes(currentUserName.toLowerCase());
+            var ayniKullanici = isAyniKullanici(row);
 
             if (select) {
-                selectedTasks.set(url, { formId: formId, isSelf: isSelf, row: row });
+                selectedTasks.set(url, { formId: formId, ayniKullanici: ayniKullanici, row: row });
                 if (cb) cb.checked = true;
                 row.style.backgroundColor = '#e8f4fd';
             } else {
@@ -153,13 +156,28 @@
     }
     attachCheckboxes();
 
-    // 4. İŞLEME VE REFRESH İLE CHECK MEKANİZMASI
+    // 4. İŞLEME VE KONTROL (REFRESH CHECK) MOTORU
     async function doOne(task) {
         var url = task[0];
         var info = task[1];
         var row = info.row;
         var formId = info.formId;
-        var isSelf = info.isSelf;
+        var ayniKullanici = info.ayniKullanici;
+
+        // Gönderen ile aktif oturum sahibi farklıysa işlem yapma, atla
+        if (!ayniKullanici) {
+            st.innerText = `⏭ #${formId} atlandı (Gönderen farklı).`;
+            if (row) {
+                row.style.outline = '1px dashed #6c757d';
+                row.style.backgroundColor = '#f8f9fa';
+                var cb = row.querySelector('.w-row-cb');
+                if (cb) cb.checked = false;
+            }
+            selectedTasks.delete(url);
+            updateCounter();
+            await sleep(600);
+            return true;
+        }
 
         if (row) {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -167,43 +185,32 @@
             row.style.backgroundColor = '#fff3cd';
         }
 
-        var tip = isSelf ? "(Evet + Onay)" : "(Sadece Onay)";
-        st.innerText = `Yükleniyor: #${formId} ${tip}...`;
+        st.innerText = `Yükleniyor: #${formId}...`;
         ifr.src = url;
 
-        await sleep(3500); // İlk yükleme süresi
+        await sleep(3500);
 
         var doc = ifr.contentDocument || ifr.contentWindow.document;
-
-        // Onay adımlarını yürüt
         var clickSuccess = false;
+
         for (var k = 0; k < 10; k++) {
+            var rad = doc.querySelector('input[type="radio"][value="Evet"]');
             var buttons = Array.from(doc.querySelectorAll('button'));
             var btn = buttons.find(b => b.innerText.includes('Onayla')) || doc.querySelector('button.btn-success');
 
-            if (isSelf) {
-                var rad = doc.querySelector('input[type="radio"][value="Evet"]');
-                if (rad && btn) {
-                    st.innerText = `Evet seçiliyor: #${formId}...`;
-                    var lbl = doc.querySelector(`label[for="${rad.id}"]`) || rad.parentElement;
-                    if (lbl) lbl.click();
-                    rad.click();
-                    rad.checked = true;
-                    rad.dispatchEvent(new Event('input', { bubbles: true }));
-                    rad.dispatchEvent(new Event('change', { bubbles: true }));
+            if (rad && btn) {
+                st.innerText = `Evet seçiliyor: #${formId}...`;
+                var lbl = doc.querySelector(`label[for="${rad.id}"]`) || rad.parentElement;
+                if (lbl) lbl.click();
+                rad.click();
+                rad.checked = true;
+                rad.dispatchEvent(new Event('input', { bubbles: true }));
+                rad.dispatchEvent(new Event('change', { bubbles: true }));
 
-                    await sleep(800);
-                    btn.click();
-                    clickSuccess = true;
-                    break;
-                }
-            } else {
-                if (btn) {
-                    st.innerText = `Onaylanıyor: #${formId}...`;
-                    btn.click();
-                    clickSuccess = true;
-                    break;
-                }
+                await sleep(800);
+                btn.click();
+                clickSuccess = true;
+                break;
             }
             await sleep(1000);
         }
@@ -217,7 +224,7 @@
             return false;
         }
 
-        // Açılır onay popup'ı (modal) varsa onayla
+        // Açılır onay penceresi (modal) varsa tıkla
         await sleep(1000);
         var modalBtn = doc.querySelector('.confirmation-modal__actions button.btn-success, .modal-dialog button.btn-success, .modal-dialog button.btn-primary');
         if (!modalBtn) {
@@ -228,42 +235,38 @@
                 if (confirmB) modalBtn = confirmB;
             });
         }
-        if (modalBtn) {
-            modalBtn.click();
-        }
+        if (modalBtn) modalBtn.click();
 
-        // 5. DOĞRULAMA (REFRESH CHECK) MEKANİZMASI
-        st.innerText = `Doğrulanıyor (Sayfa yenileniyor): #${formId}...`;
-        await sleep(2500); // Sunucu kaydı için bekle
+        // 5. DOĞRULAMA (REFRESH İLE KONTROL)
+        st.innerText = `Doğrulanıyor: #${formId}...`;
+        await sleep(2000);
 
-        // Sayfayı iframe içinde yeniden yükle
         ifr.src = url + '&check=' + Date.now();
-        await sleep(3500); // Yenilenen sayfanın açılmasını bekle
+        await sleep(3500);
 
         var checkDoc = ifr.contentDocument || ifr.contentWindow.document;
         var checkButtons = Array.from(checkDoc.querySelectorAll('button'));
         var checkBtn = checkButtons.find(b => b.innerText.includes('Onayla')) || checkDoc.querySelector('button.btn-success');
         
-        // Yenilenen sayfada "Onayla" butonu kaybolmuşsa veya onaylandı ibaresi geldiyse işlem kesinleşmiştir
-        var isReallyApproved = !checkBtn || checkDoc.body.innerText.includes('Onaylandı') || checkDoc.body.innerText.includes('Onaylanan Süreç');
+        var isApproved = !checkBtn || checkDoc.body.innerText.includes('Onaylandı') || checkDoc.body.innerText.includes('Onaylanan Süreç');
 
-        if (isReallyApproved) {
-            st.innerText = `✔ #${formId} başarıyla onaylandı ve doğrulandı!`;
+        if (isApproved) {
+            st.innerText = `✔ #${formId} onaylandı ve doğrulandı!`;
             selectedTasks.delete(url);
 
             if (row) {
                 row.style.outline = '2px solid #28a745';
                 row.style.backgroundColor = '#d4edda';
-                var cb = row.querySelector('.w-row-cb');
-                if (cb) {
-                    cb.checked = false;
-                    cb.disabled = true;
+                var cbDone = row.querySelector('.w-row-cb');
+                if (cbDone) {
+                    cbDone.checked = false;
+                    cbDone.disabled = true;
                 }
             }
             updateCounter();
             return true;
         } else {
-            st.innerText = `✖ #${formId} tıklandı ama sunucu onaylamadı!`;
+            st.innerText = `✖ #${formId} sunucu onaylamadı!`;
             if (row) {
                 row.style.outline = '2px solid #dc3545';
                 row.style.backgroundColor = '#f8d7da';
@@ -296,7 +299,7 @@
         for (var i = 0; i < tasks.length; i++) {
             if (!run) break;
             await doOne(tasks[i]);
-            if (run) await sleep(1500);
+            if (run) await sleep(1200);
         }
 
         run = false;
