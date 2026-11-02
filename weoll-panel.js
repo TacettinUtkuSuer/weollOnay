@@ -10,10 +10,10 @@
             <span>Weoll Net Onay</span>
             <span style="cursor:pointer;color:#888;font-size:14px;" id="w-x">✖</span>
         </div>
-        <div id="w-warning" style="display:none;background:#f8d7da;color:#dc3545;padding:8px;border-radius:4px;margin-bottom:8px;font-weight:bold;border:1px solid #dc3545;">
-            ⚠️ Ekrana çok zoom yapılmış!<br>"Gönderen" sütunu görünmüyor.<br>Lütfen Ctrl ve Eksi (-) tuşuyla ekranı uzaklaştırın.
+        <div id="w-warning" style="display:none;background:#f8d7da;color:#dc3545;padding:8px;border-radius:4px;margin-bottom:8px;font-weight:bold;border:1px solid #dc3545;font-size:11px;">
+            <!-- Uyarılar buraya gelecek -->
         </div>
-        <div id="w-st" style="margin-bottom:8px;color:#555;">Hazır. Form seçin.</div>
+        <div id="w-st" style="margin-bottom:8px;color:#555;">Hazırlanıyor...</div>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
             <button id="w-btn-all" style="flex:1;background:#6c757d;color:#fff;border:none;padding:8px;border-radius:4px;cursor:pointer;">Tümünü Seç</button>
             <button id="w-btn-go" style="flex:1.5;background:#28a745;color:#fff;border:none;padding:8px;border-radius:4px;cursor:pointer;font-weight:bold;">Seçilenleri Onayla</button>
@@ -27,37 +27,52 @@
     var warningEl = document.getElementById('w-warning');
     var btnGo = document.getElementById('w-btn-go');
     
-    // KENDİ İSMİNİ BUL
-    var myName = "";
-    var nameNode = document.querySelector('a.myspace-button div[style*="font-size: 14px"]');
-    if (nameNode) myName = nameNode.textContent.trim();
-
     var selected = new Set();
+    window.weollMyName = null;
+
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    // 2. ZOOM VE GÖRÜNÜRLÜK KONTROLÜ (GİZLİYSE BUTONU KİLİTLE)
+    // 2. ÇİFTE KONTROL (SOL MENÜ + ZOOM)
     setInterval(function() {
+        // Sol menüden ismi oku[cite: 1, 2]
+        var myName = "";
+        var nameNode = document.querySelector('a.myspace-button div[style*="font-size: 14px"]');
+        if (nameNode && nameNode.offsetWidth > 0) {
+            myName = nameNode.textContent.trim();
+        }
+
+        // Gönderen sütununu kontrol et[cite: 2]
         var isVisible = false;
         document.querySelectorAll('tr[data-index]').forEach(row => {
             var userCard = row.querySelector('.user-card-v0');
-            // offsetWidth > 0 demek ekranda fiziken yer kaplıyor ve görünüyor demektir
             if (userCard && userCard.offsetWidth > 0) isVisible = true;
         });
         
-        if (!isVisible && document.querySelectorAll('tr[data-index]').length > 0) {
+        var rowsExist = document.querySelectorAll('tr[data-index]').length > 0;
+
+        // Uyarı Mantığı
+        if (rowsExist && (!myName || !isVisible)) {
+            var hataMsj = "⚠️ İŞLEM DURDURULDU:<br>";
+            if (!myName) hataMsj += "- Sol menü kapalı (İsim okunamıyor).<br>";
+            if (!isVisible) hataMsj += "- 'Gönderen' sütunu gizli (Ekranı uzaklaştırın).<br>";
+            
+            warningEl.innerHTML = hataMsj;
             warningEl.style.display = 'block';
             btnGo.disabled = true;
             btnGo.style.opacity = '0.4';
             btnGo.style.cursor = 'not-allowed';
-        } else {
+            window.weollMyName = null; 
+        } else if (rowsExist) {
             warningEl.style.display = 'none';
             btnGo.disabled = false;
             btnGo.style.opacity = '1';
             btnGo.style.cursor = 'pointer';
+            window.weollMyName = myName; 
+            st.innerHTML = "Hazır. Kullanıcı: <b>" + myName + "</b>";
         }
     }, 1000);
 
-    // 3. BASİT CHECKBOX EKLEME
+    // 3. BASİT CHECKBOX EKLEME[cite: 2]
     setInterval(function() {
         document.querySelectorAll('tr[data-index]').forEach(row => {
             var link = row.querySelector('a[href*="/forms/submission?id="]');
@@ -117,9 +132,10 @@
         var row = link ? link.closest('tr') : null;
         var formId = link ? link.innerText.trim() : "Form";
         
+        // Eşleşme kararı[cite: 2]
         var isSelf = false;
         var userCard = row ? row.querySelector('.user-card-v0') : null;
-        if (userCard && myName && userCard.textContent.toLowerCase().includes(myName.toLowerCase())) {
+        if (userCard && window.weollMyName && userCard.textContent.toLowerCase().includes(window.weollMyName.toLowerCase())) {
             isSelf = true;
         }
 
@@ -161,7 +177,7 @@
             return;
         }
 
-        // Pop-up onay penceresini bul ve bas
+        // Pop-up onayı
         await sleep(1000);
         var modalBtn = doc.querySelector('.modal-dialog button.btn-success, .confirmation-modal__actions button.btn-success');
         if (modalBtn) {
@@ -175,7 +191,7 @@
         st.innerHTML = `<b>#${formId}</b> kontrol ediliyor...`;
         await sleep(2000);
         
-        // Yenile (Refresh) ve Başarıyı Kontrol Et
+        // Yenile ve Doğrula
         ifr.src = url + "&check=1";
         await sleep(3000);
         
